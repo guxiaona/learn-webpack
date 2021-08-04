@@ -14,7 +14,7 @@ const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const vueLoaderPlugin = require('vue-loader/lib/plugin')
 
 // // 配置webpack-dev-server进行热更新
-// const Webpack = require('webpack')
+const Webpack = require('webpack')
 
 const devMode = process.argv.indexOf('--mode=production') === -1;
 
@@ -25,6 +25,12 @@ const happyThreadPool = HappyPack.ThreadPool({ size: os.cpus().length })
 
 // 使用webpack-parallel-uglify-plugin 增强代码压缩
 const ParallelUglifyPlugin = require('webpack-parallel-uglify-plugin')
+
+// webpack-bundle-analyzer分析打包后的文件
+const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
+
+// 去除代码中的console
+const TerserPlugin = require("terser-webpack-plugin");
 
 module.exports = {
     mode: 'development', // 开发模式
@@ -66,7 +72,7 @@ module.exports = {
                 //     // 用babel转义js文件 js代码兼容更多的环境
                 //     loader: 'babel-loader',
                 //     options: {
-                //         presets: ['@babel/preset-env']
+                //         presets: ['@babel/preset-env',{module:false}]
                 //     } 
                 // },
                 // 把js文件处理交给id为happyBabel的happyPack的实例执行 
@@ -149,7 +155,16 @@ module.exports = {
                         }
                     }
                 }
-            }
+            },
+            // 如果loader不支持缓存,通过cache-loader
+            // {
+            //     test: /\.ext$/,
+            //     use: [
+            //         'cache-loader',
+            //         ...loaders
+            //     ],
+            //     include: path.resolve(__dirname, 'src')
+            // }
         ],
     },
     // 解析.vue文件
@@ -211,26 +226,47 @@ module.exports = {
             }],
             threadPool: happyThreadPool, // 共享进程池
             verbose: true
+        }),
+
+        // // 抽离第三方模块，没有更新第三方依赖包，就不必npm run dll。直接执行npm run dev npm run build
+        // new webpack.DllReferencePlugin({
+        //     context: __dirname,
+        //     manifest: require('./vendor-manifest.json')
+        // }),
+        // new CopyWebpackPlugin([ // 拷贝生成的文件到dist目录 这样每次不必手动去cv
+        //     { from: 'static', to: 'static' }
+        // ]),
+
+        // 引入webpack-bundle-analyzer分析打包后的文件
+        // 将打包后的内容束展示为方便交互的直观树状图，让我们知道我们所构建包中真正引入的内容
+        new BundleAnalyzerPlugin({
+            analyzerHost: '127.0.0.1',
+            analyzerPort: 8889
         })
     ],
 
-    // 使用webpack-parallel-uglify-plugin 增强代码压缩
+
     optimization: {
-        minimizer: [
-            new ParallelUglifyPlugin({
-                cacheDir: '.cache/',
-                uglifyJS: {
-                    output: {
-                        comments: false,
-                        beautify: false
-                    },
-                    compress: {
-                        drop_console: true,
-                        collapse_vars: true,
-                        reduce_vars: true
-                    }
-                }
-            })
-        ]
+        // 使用webpack-parallel-uglify-plugin 增强代码压缩
+        // 开启多个子进程,并行处理多个子任务,不支持老项目
+        // minimizer: [
+        //     new ParallelUglifyPlugin({
+        //         cacheDir: '.cache/',
+        //         uglifyJS: {
+        //             output: {
+        //                 comments: false,
+        //                 beautify: false
+        //             },
+        //             compress: {
+        //                 drop_console: true,
+        //                 collapse_vars: true,
+        //                 reduce_vars: true
+        //             }
+        //         }
+        //     })
+        // ]
+        // 并行处理多个子任务
+        minimize: true,
+        minimizer: [new TerserPlugin()],
     }
 }
